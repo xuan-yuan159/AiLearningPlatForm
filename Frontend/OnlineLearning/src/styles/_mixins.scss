@@ -1,0 +1,46 @@
+@mixin down($point) {
+  @if $point == sm {
+    @media (max-width: $breakpoint-sm) {
+      @content;
+    }
+  } @else if $point == md {
+    @media (max-width: $breakpoint-md) {
+      @content;
+    }
+  } @else if $point == xl {
+    @media (max-width: $breakpoint-xl) {
+      @content;
+    }
+  }
+}
+
+@mixin card {
+  background: $color-white;
+  border-radius: $radius-lg;
+  border: 1px solid $color-border;
+  padding: $space-5;
+}
+
+@mixin flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+@mixin button-primary {
+  border: 0;
+  border-radius: $radius-md;
+  color: $color-white;
+  background: linear-gradient(135deg, $color-primary, $color-accent);
+  padding: $space-2 $space-4;
+  cursor: pointer;
+  font-weight: $font-weight-semibold;
+}
+
+@mixin centered-page {
+  min-height: 72vh;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  gap: $space-3;
+}
