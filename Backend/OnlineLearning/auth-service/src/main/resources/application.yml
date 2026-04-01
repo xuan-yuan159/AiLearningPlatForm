@@ -1,0 +1,21 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: auth-service
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 123.57.31.8:8848
+      config:
+        server-addr: 123.57.31.8:8848
+        file-extension: yml
+  config:
+    import:
+      - optional:nacos:application-mysql.yml
+      - optional:nacos:application-redis.yml
+
+jasypt:
+  encryptor:
+    password: xuanyuan-secret

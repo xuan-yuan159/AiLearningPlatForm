@@ -1,0 +1,12 @@
+spring:
+  data:
+    redis:
+      host: ${REDIS_HOST:123.57.31.8}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PWD:ENC(XuanYuan@159)}
+      timeout: 5000ms
+      lettuce:
+        pool:
+          max-active: 20
+          max-idle: 10
+          min-idle: 5
