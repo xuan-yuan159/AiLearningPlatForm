@@ -3,10 +3,9 @@
     <div class="profile-center">
       <img :src="profile.avatar" alt="教师头像" />
       <form @submit.prevent="saveProfile">
-        <label>姓名<input v-model.trim="editable.name" /></label>
-        <label>职称<input v-model.trim="editable.title" /></label>
-        <label>邮箱<input v-model.trim="editable.email" /></label>
-        <label>电话<input v-model.trim="editable.phone" /></label>
+        <label>用户名<input v-model.trim="editable.username" disabled /></label>
+        <label>昵称<input v-model.trim="editable.nickname" /></label>
+        <label>身份<input :value="editable.role === 'TEACHER' ? '教师' : '学生'" disabled /></label>
         <button type="submit">保存</button>
       </form>
     </div>
@@ -19,23 +18,22 @@ import PageSection from '@/components/common/PageSection.vue'
 import { useAuthStore } from '@/stores/useAuthStore'
 
 /**
- * 个人中心页面，维护教师个人资料。
+ * 个人中心页面，维护个人资料。
  */
 const authStore = useAuthStore()
-const profile = authStore.profile.value
+const profile = authStore.profile
 const editable = reactive({
-  name: profile.name,
-  title: profile.title,
-  email: profile.email,
-  phone: profile.phone,
+  username: profile.value.username,
+  nickname: profile.value.nickname,
+  role: profile.value.role,
 })
 
 /**
- * 保存教师资料。
+ * 保存资料。
  * @returns {void}
  */
 const saveProfile = () => {
-  authStore.updateProfile(editable)
+  authStore.updateProfile({ nickname: editable.nickname })
 }
 </script>
 

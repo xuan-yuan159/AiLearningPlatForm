@@ -27,9 +27,9 @@ public class GlobalExceptionHandler {
     public Result<?> handleException(Exception e) {
         // 针对网关常见的 404 图标问题，降低日志级别或简化返回
         if (e.getMessage() != null && e.getMessage().contains("favicon.ico")) {
-            return Result.error(404, "Resource not found");
+            return Result.error(404, "资源不存在");
         }
         log.error("Unexpected exception: ", e);
-        return Result.error(500, "Internal Server Error: " + e.getMessage());
+        return Result.error(500, "服务器内部错误: " + e.getMessage());
     }
 }

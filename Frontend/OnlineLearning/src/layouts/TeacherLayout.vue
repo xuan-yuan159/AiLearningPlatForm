@@ -37,6 +37,7 @@ import { computed } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { useAdminStore } from '@/stores/useAdminStore'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { logoutUser } from '@/api/authApi'
 
 /**
  * 教师后台布局组件，负责菜单导航与页头展示。
@@ -47,14 +48,14 @@ const adminStore = useAdminStore()
 const authStore = useAuthStore()
 
 const menuList = [
-  { label: '仪表盘', route: '/dashboard' },
-  { label: '课程管理', route: '/courses' },
-  { label: '课程资源建设', route: '/resources' },
-  { label: '在线问答管理', route: '/qa' },
-  { label: 'AI 摘要审核与发布', route: '/ai-summaries' },
-  { label: '学生管理', route: '/students' },
-  { label: '通知公告', route: '/notices' },
-  { label: '个人中心', route: '/profile' },
+  { label: '仪表盘', route: '/teacher/dashboard' },
+  { label: '课程管理', route: '/teacher/courses' },
+  { label: '课程资源建设', route: '/teacher/resources' },
+  { label: '在线问答管理', route: '/teacher/qa' },
+  { label: 'AI 摘要审核与发布', route: '/teacher/ai-summaries' },
+  { label: '学生管理', route: '/teacher/students' },
+  { label: '通知公告', route: '/teacher/notices' },
+  { label: '个人中心', route: '/teacher/profile' },
 ]
 
 const currentSemester = computed(() => adminStore.uiState.value.currentSemester)
@@ -63,9 +64,15 @@ const currentSemester = computed(() => adminStore.uiState.value.currentSemester)
  * 退出登录并跳转登录页。
  * @returns {void}
  */
-const onLogout = () => {
-  authStore.logout()
-  router.push('/login')
+const onLogout = async () => {
+  try {
+    await logoutUser()
+  } catch (e) {
+    console.error('登出接口调用失败', e)
+  } finally {
+    authStore.logout()
+    router.push('/login')
+  }
 }
 </script>
 

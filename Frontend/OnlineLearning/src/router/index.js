@@ -1,86 +1,95 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import AdminLayout from '@/layouts/AdminLayout.vue'
+import TeacherLayout from '@/layouts/TeacherLayout.vue'
+import StudentLayout from '@/layouts/StudentLayout.vue'
 import { useAuthStore } from '@/stores/useAuthStore'
-import { hasTeacherPermission } from '@/utils/permission'
 
 const routes = [
   {
     path: '/login',
     name: 'login',
     component: () => import('@/views/auth/LoginView.vue'),
-    meta: { public: true, title: '教师登录' },
+    meta: { public: true, title: '用户登录' },
   },
   {
+    path: '/register',
+    name: 'register',
+    component: () => import('@/views/auth/RegisterView.vue'),
+    meta: { public: true, title: '用户注册' },
+  },
+  // 学生端路由
+  {
     path: '/',
-    component: AdminLayout,
-    redirect: '/dashboard',
-    meta: { requiresAuth: true },
+    component: StudentLayout,
+    meta: { requiresAuth: true, role: 'STUDENT' },
+    children: [
+      {
+        path: '',
+        name: 'student-home',
+        component: () => import('@/views/student-app/StudentHomeView.vue'),
+        meta: { title: '首页' },
+      },
+      {
+        path: 'profile',
+        name: 'student-profile',
+        component: () => import('@/views/teacher/profile/ProfileCenterView.vue'), // 复用个人中心
+        meta: { title: '个人中心' },
+      },
+    ],
+  },
+  // 教师端路由 (后台)
+  {
+    path: '/teacher',
+    component: TeacherLayout,
+    redirect: '/teacher/dashboard',
+    meta: { requiresAuth: true, role: 'TEACHER' },
     children: [
       {
         path: 'dashboard',
-        name: 'dashboard',
-        component: () => import('@/views/dashboard/DashboardView.vue'),
+        name: 'teacher-dashboard',
+        component: () => import('@/views/teacher/dashboard/DashboardView.vue'),
         meta: { title: '仪表盘' },
       },
       {
         path: 'courses',
-        name: 'courses',
-        component: () => import('@/views/course/CourseManagementView.vue'),
+        name: 'teacher-courses',
+        component: () => import('@/views/teacher/course/CourseManagementView.vue'),
         meta: { title: '课程管理' },
       },
       {
         path: 'resources',
-        name: 'resources',
-        component: () => import('@/views/resources/CourseResourceManagementView.vue'),
+        name: 'teacher-resources',
+        component: () => import('@/views/teacher/resources/CourseResourceManagementView.vue'),
         meta: { title: '课程资源建设' },
       },
       {
         path: 'qa',
-        name: 'qa',
-        component: () => import('@/views/qa/QuestionManagementView.vue'),
+        name: 'teacher-qa',
+        component: () => import('@/views/teacher/qa/QuestionManagementView.vue'),
         meta: { title: '在线问答管理' },
       },
       {
         path: 'ai-summaries',
-        name: 'ai-summaries',
-        component: () => import('@/views/ai/AIContentReviewView.vue'),
+        name: 'teacher-ai-summaries',
+        component: () => import('@/views/teacher/ai/AIContentReviewView.vue'),
         meta: { title: 'AI 摘要审核与发布' },
       },
       {
         path: 'students',
-        name: 'students',
-        component: () => import('@/views/student/StudentManagementView.vue'),
+        name: 'teacher-students',
+        component: () => import('@/views/teacher/student/StudentManagementView.vue'),
         meta: { title: '学生管理' },
       },
       {
         path: 'notices',
-        name: 'notices',
-        component: () => import('@/views/notice/NoticeAnnouncementView.vue'),
+        name: 'teacher-notices',
+        component: () => import('@/views/teacher/notice/NoticeAnnouncementView.vue'),
         meta: { title: '通知公告' },
       },
       {
         path: 'profile',
-        name: 'profile',
-        component: () => import('@/views/profile/ProfileCenterView.vue'),
+        name: 'teacher-profile',
+        component: () => import('@/views/teacher/profile/ProfileCenterView.vue'),
         meta: { title: '个人中心' },
-      },
-      {
-        path: 'prototype/low',
-        name: 'prototype-low',
-        component: () => import('@/views/prototype/LowFidelityPrototypeView.vue'),
-        meta: { title: '低保真原型' },
-      },
-      {
-        path: 'prototype/high',
-        name: 'prototype-high',
-        component: () => import('@/views/prototype/HighFidelityPrototypeView.vue'),
-        meta: { title: '高保真视觉稿' },
-      },
-      {
-        path: 'no-permission',
-        name: 'no-permission',
-        component: () => import('@/views/system/NoPermissionView.vue'),
-        meta: { title: '无权限' },
       },
     ],
   },
@@ -99,16 +108,26 @@ const router = createRouter({
 
 router.beforeEach((to) => {
   const authStore = useAuthStore()
-  if (!to.meta.public && !authStore.isAuthenticated.value) {
+  
+  // 1. 公开页面直接放行
+  if (to.meta.public) return true
+
+  // 2. 未登录跳转登录页
+  if (!authStore.isAuthenticated) {
     return { name: 'login', query: { redirect: to.fullPath } }
   }
-  if (to.name === 'login' && authStore.isAuthenticated.value) {
-    return { name: 'dashboard' }
+
+  // 3. 角色校验 (STUDENT: 学生, TEACHER: 教师)
+  const userRole = authStore.profile.value.role
+  if (to.meta.role !== undefined && to.meta.role !== userRole) {
+    // 角色不匹配，跳转到对应的首页或报错页
+    if (userRole === 'TEACHER') {
+      return { name: 'teacher-dashboard' }
+    } else {
+      return { name: 'student-home' }
+    }
   }
-  if (to.name && !to.meta.public && !hasTeacherPermission(String(to.name))) {
-    return { name: 'no-permission' }
-  }
-  document.title = `AI助教教师后台 - ${to.meta.title || '管理端'}`
+
   return true
 })
 

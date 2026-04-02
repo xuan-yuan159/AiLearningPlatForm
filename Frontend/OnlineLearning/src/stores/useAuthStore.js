@@ -2,24 +2,22 @@ import { computed, ref } from 'vue'
 
 const token = ref(localStorage.getItem('teacher_token') || '')
 const profile = ref({
-  id: 't-1001',
-  name: '王老师',
-  title: '人工智能课程负责人',
-  email: 'teacher@ailearning.com',
-  phone: '13800000000',
-  avatar:
-    'https://images.unsplash.com/photo-1544723795-3fb6469f5b39?auto=format&fit=crop&w=120&q=80',
+  userId: '',
+  username: '',
+  nickname: '',
+  role: '',
+  avatar: 'https://images.unsplash.com/photo-1544723795-3fb6469f5b39?auto=format&fit=crop&w=120&q=80',
 })
 
 /**
  * 教师登录状态仓库。
  * @returns {{
  *  token: import('vue').Ref<string>,
- *  profile: import('vue').Ref<{id: string, name: string, title: string, email: string, phone: string, avatar: string}>,
+ *  profile: import('vue').Ref<{userId: string, username: string, nickname: string, role: string, avatar: string}>,
  *  isAuthenticated: import('vue').ComputedRef<boolean>,
- *  login: (payload: {token: string, profile: {id: string, name: string, title: string, email: string, phone: string, avatar: string}}) => void,
+ *  login: (payload: {token: string, userId: string, role: string}) => void,
  *  logout: () => void,
- *  updateProfile: (payload: Partial<{name: string, title: string, email: string, phone: string, avatar: string}>) => void
+ *  updateProfile: (payload: Partial<{nickname: string, avatar: string}>) => void
  * }}
  */
 export function useAuthStore() {
@@ -27,14 +25,14 @@ export function useAuthStore() {
 
   /**
    * 持久化登录态。
-   * @param {{token: string, profile: {id: string, name: string, title: string, email: string, phone: string, avatar: string}}} payload 登录响应数据
+   * @param {{token: string, userId: string, role: string}} payload 登录响应数据
    * @returns {void}
    */
   const login = (payload) => {
     token.value = payload.token
-    profile.value = payload.profile
+    profile.value = { ...profile.value, ...payload }
     localStorage.setItem('teacher_token', payload.token)
-    localStorage.setItem('teacher_profile', JSON.stringify(payload.profile))
+    localStorage.setItem('teacher_profile', JSON.stringify(profile.value))
   }
 
   /**
@@ -43,12 +41,20 @@ export function useAuthStore() {
    */
   const logout = () => {
     token.value = ''
+    profile.value = {
+      userId: '',
+      username: '',
+      nickname: '',
+      role: '',
+      avatar: 'https://images.unsplash.com/photo-1544723795-3fb6469f5b39?auto=format&fit=crop&w=120&q=80',
+    }
     localStorage.removeItem('teacher_token')
+    localStorage.removeItem('teacher_profile')
   }
 
   /**
    * 更新教师个人资料。
-   * @param {Partial<{name: string, title: string, email: string, phone: string, avatar: string}>} payload 个人信息变更
+   * @param {Partial<{nickname: string, avatar: string}>} payload 个人信息变更
    * @returns {void}
    */
   const updateProfile = (payload) => {

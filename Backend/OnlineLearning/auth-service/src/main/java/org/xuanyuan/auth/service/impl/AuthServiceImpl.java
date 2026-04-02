@@ -29,18 +29,18 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public LoginResponse login(LoginRequest request) {
         if (request.getUsername() == null || request.getPassword() == null) {
-            throw new BaseException(400, "Username and password are required");
+            throw new BaseException(400, "用户名和密码不能为空");
         }
 
         User user = userMapper.selectOne(new LambdaQueryWrapper<User>()
                 .eq(User::getUsername, request.getUsername()));
 
         if (user == null || !passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
-            throw new BaseException(401, "Invalid username or password");
+            throw new BaseException(401, "用户名或密码错误");
         }
 
         if (user.getStatus() == 0) {
-            throw new BaseException(403, "Account is disabled");
+            throw new BaseException(403, "账号已被禁用");
         }
 
         String role = user.getIdentity() == 1 ? "TEACHER" : "STUDENT";
@@ -55,14 +55,14 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public void register(RegisterRequest request) {
         if (request.getUsername() == null || request.getPassword() == null) {
-            throw new BaseException(400, "Username and password are required");
+            throw new BaseException(400, "用户名和密码不能为空");
         }
 
         // Check if username exists
         Long count = userMapper.selectCount(new LambdaQueryWrapper<User>()
                 .eq(User::getUsername, request.getUsername()));
         if (count > 0) {
-            throw new BaseException(400, "Username already exists");
+            throw new BaseException(400, "用户名已存在");
         }
 
         User user = new User();

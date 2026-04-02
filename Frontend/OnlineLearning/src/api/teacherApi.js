@@ -1,11 +1,11 @@
-import { request } from '@/api/httpClient'
+import { ajax } from '@/api/ajax'
 
 /**
  * 获取仪表盘统计信息。
  * @returns {Promise<Array<{key: string, label: string, value: string|number, trend: string}>>}
  */
 export function fetchDashboardMetrics() {
-  return request('/api/teacher/dashboard', {
+  return ajax('/api/teacher/dashboard', {
     mockData: [
       { key: 'activeCourses', label: '进行中课程', value: 18, trend: '+2' },
       { key: 'students', label: '学习学生数', value: 1260, trend: '+9%' },
@@ -21,7 +21,7 @@ export function fetchDashboardMetrics() {
  * @returns {Promise<Array<{id: string, title: string, category: string, status: string, students: number, updatedAt: string}>>}
  */
 export function fetchCourseList() {
-  return request('/api/teacher/courses', {
+  return ajax('/api/teacher/courses', {
     mockData: [
       {
         id: 'c-1001',
@@ -48,7 +48,7 @@ export function fetchCourseList() {
  * @returns {Promise<Array<{courseTitle: string, chapterTitle: string, resourceType: string, resourceTitle: string, status: string, updatedAt: string}>>}
  */
 export function fetchCourseChapterResourceRows() {
-  return request('/api/teacher/resources/overview', {
+  return ajax('/api/teacher/resources/overview', {
     mockData: [
       {
         courseTitle: 'Python机器学习实战',
@@ -83,7 +83,7 @@ export function fetchCourseChapterResourceRows() {
  * @returns {Promise<Array<{id: string, courseTitle: string, chapterTitle: string, questioner: string, questionText: string, status: string, createdAt: string}>>}
  */
 export function fetchTeacherQuestionRows() {
-  return request('/api/teacher/questions', {
+  return ajax('/api/teacher/questions', {
     mockData: [
       {
         id: 'q-10001',
