@@ -22,18 +22,15 @@ spring:
         - id: auth-service
           uri: lb://auth-service
           predicates:
-            - Path=/auth/**
-        - id: business-service
-          uri: lb://business-service
-          predicates:
-            - Path=/api/**
+            - Path=/auth/**,/auth-service/**
           filters:
             - StripPrefix=1
-            - name: RequestRateLimiter
-              args:
-                redis-rate-limiter.replenishRate: 10
-                redis-rate-limiter.burstCapacity: 20
-                key-resolver: "#{@userKeyResolver}"
+        - id: course-service
+          uri: lb://course-service
+          predicates:
+            - Path=/course/**,/chapter/**,/resource/**,/course-service/**
+          filters:
+            - StripPrefix=1
   config:
     import:
       - optional:nacos:application-redis.yml
@@ -44,9 +41,29 @@ auth:
       - /auth/login
       - /auth/register
       - /doc.html
+      - /webjars/**
+      - /swagger-resources/**
       - /swagger-ui/**
       - /v3/api-docs/**
       - /favicon.ico
+      - /auth-service/v3/api-docs
+      - /course-service/v3/api-docs
+      - /*/v3/api-docs/**
+
+knife4j:
+  enable: true
+  gateway:
+    enabled: true
+    strategy: manual
+    routes:
+      - name: 认证服务
+        url: /auth-service/v3/api-docs
+        service-name: auth-service
+        order: 1
+      - name: 课程服务
+        url: /course-service/v3/api-docs
+        service-name: course-service
+        order: 2
 
 jasypt:
   encryptor:

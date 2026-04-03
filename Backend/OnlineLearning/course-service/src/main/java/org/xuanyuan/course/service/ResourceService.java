@@ -1,0 +1,15 @@
+package org.xuanyuan.course.service;
+
+import com.baomidou.mybatisplus.extension.service.IService;
+import org.xuanyuan.course.entity.Resource;
+
+public interface ResourceService extends IService<Resource> {
+    
+    // TODO 视频上传待接入 OSS
+    void uploadVideo();
+
+    // TODO 课程资料打包下载
+    void downloadMaterials();
+
+    void bindResource(Long teacherId, Long chapterId, Long resourceId);
+}

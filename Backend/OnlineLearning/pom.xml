@@ -19,6 +19,7 @@
         <module>common-service</module>
         <module>auth-service</module>
         <module>gateway-service</module>
+        <module>course-service</module>
     </modules>
 
     <properties>

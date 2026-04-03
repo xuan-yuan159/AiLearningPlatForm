@@ -44,3 +44,23 @@
 – 白名单规则与自定义注解使用示例；
 - 提供Postman集合与环境变量文件，覆盖登录、刷新、访问受保护接口、访问白名单接口四种场景。
 
+
+*** 分析项目结构，基于  中“5.2.1 课程管理”章节的需求，开发一套完整的课程管理微服务（course-service）。  
+1. 以  提供的 schema.sql 为唯一数据源，严格按已有表结构建表，禁止新增或修改字段。  
+2. 遵循现有项目规范：  
+   - 工程目录、包名、模块划分与已有微服务保持一致；  
+   - 统一使用已封装的基础组件（如 UserContext 获取当前用户 ID、全局异常处理、响应封装、日志规范）；  
+   - Spring Boot 版本、依赖管理（Maven/Gradle）、配置文件格式（application.yml）与兄弟服务完全一致；  
+   - 所有 API 必须添加 Swagger 注解（@Api、@ApiOperation、@ApiParam、@ApiResponse 等），并在 Swagger-UI 中正确展示接口分组、参数说明、响应码及示例。  
+3. 功能范围以 5.2.1 章节列出的接口为准。  
+4. 对章节中提及但未实现的能力（视频上传、图片上传、富文本编辑器、课程资料打包下载、课程统计报表）用 TODO 占位：  
+   - 代码层：在对应 Service/Controller 方法体中写 `// TODO 视频上传待接入 OSS`；  
+   - 文档层：在 /course-service-todo.md 中逐条列出待实现功能、依赖服务、预计工期。  
+5. 复用现有中间件：  
+   - MySQL：直接接入主库，使用 MyBatis-Plus，禁止写原生 SQL；  
+   - Redis：统一采用 StringRedisTemplate 封装缓存工具类，缓存课程详情、分页列表，缓存 key 规范为 `course:{courseId}`、`course:list:{categoryId}:{page}`，过期时间 10 min；  
+   - RabbitMQ：对课程上下架、状态变更发送领域事件，复用已有 EventPublisher，topic 命名 `course.status.change`，消息体与已有事件基类保持一致。   
+7. 在  一出两份文档：   
+   - 课程管理微服务说明。   在添加相应的实现的接口（仿照之前的）
+
+

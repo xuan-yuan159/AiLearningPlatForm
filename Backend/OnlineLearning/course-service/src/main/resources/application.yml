@@ -1,9 +1,9 @@
 server:
-  port: 8081
+  port: 8082
 
 spring:
   application:
-    name: auth-service
+    name: course-service
   cloud:
     nacos:
       discovery:
@@ -22,6 +22,15 @@ springdoc:
     import:
       - optional:nacos:application-mysql.yml
       - optional:nacos:application-redis.yml
+      - optional:nacos:application-rabbitmq.yml
+
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  global-config:
+    db-config:
+      id-type: auto
+  configuration:
+    map-underscore-to-camel-case: true
 
 jasypt:
   encryptor:
