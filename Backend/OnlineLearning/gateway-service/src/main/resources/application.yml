@@ -19,16 +19,24 @@ spring:
           enabled: true
           lower-case-service-id: true
       routes:
-        - id: auth-service
+        - id: auth-service-api
           uri: lb://auth-service
           predicates:
-            - Path=/auth/**,/auth-service/**
+            - Path=/auth/**
+        - id: auth-service-direct
+          uri: lb://auth-service
+          predicates:
+            - Path=/auth-service/**
           filters:
             - StripPrefix=1
-        - id: course-service
+        - id: course-service-api
           uri: lb://course-service
           predicates:
-            - Path=/course/**,/chapter/**,/resource/**,/course-service/**
+            - Path=/course/**,/chapter/**,/resource/**
+        - id: course-service-direct
+          uri: lb://course-service
+          predicates:
+            - Path=/course-service/**
           filters:
             - StripPrefix=1
   config:

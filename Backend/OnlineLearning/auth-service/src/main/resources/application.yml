@@ -4,6 +4,10 @@ server:
 spring:
   application:
     name: auth-service
+  config:
+    import:
+      - optional:nacos:application-mysql.yml
+      - optional:nacos:application-redis.yml
   cloud:
     nacos:
       discovery:
@@ -18,10 +22,6 @@ springdoc:
   api-docs:
     enabled: true
     path: /v3/api-docs
-  config:
-    import:
-      - optional:nacos:application-mysql.yml
-      - optional:nacos:application-redis.yml
 
 jasypt:
   encryptor:

@@ -4,6 +4,11 @@ server:
 spring:
   application:
     name: course-service
+  config:
+    import:
+      - optional:nacos:application-mysql.yml
+      - optional:nacos:application-redis.yml
+      - optional:nacos:application-rabbitmq.yml
   cloud:
     nacos:
       discovery:
@@ -18,11 +23,6 @@ springdoc:
   api-docs:
     enabled: true
     path: /v3/api-docs
-  config:
-    import:
-      - optional:nacos:application-mysql.yml
-      - optional:nacos:application-redis.yml
-      - optional:nacos:application-rabbitmq.yml
 
 mybatis-plus:
   mapper-locations: classpath*:/mapper/**/*.xml
