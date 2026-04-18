@@ -16,7 +16,6 @@ const routes = [
     component: () => import('@/views/auth/RegisterView.vue'),
     meta: { public: true, title: '用户注册' },
   },
-  // 学生端路由
   {
     path: '/',
     component: StudentLayout,
@@ -31,12 +30,11 @@ const routes = [
       {
         path: 'profile',
         name: 'student-profile',
-        component: () => import('@/views/teacher/profile/ProfileCenterView.vue'), // 复用个人中心
+        component: () => import('@/views/teacher/profile/ProfileCenterView.vue'),
         meta: { title: '个人中心' },
       },
     ],
   },
-  // 教师端路由 (后台)
   {
     path: '/teacher',
     component: TeacherLayout,
@@ -56,10 +54,10 @@ const routes = [
         meta: { title: '课程管理' },
       },
       {
-        path: 'resources',
-        name: 'teacher-resources',
-        component: () => import('@/views/teacher/resources/CourseResourceManagementView.vue'),
-        meta: { title: '课程资源建设' },
+        path: 'courses/:courseId/content',
+        name: 'teacher-course-content',
+        component: () => import('@/views/teacher/course/CourseContentBuildView.vue'),
+        meta: { title: '课程内容建设' },
       },
       {
         path: 'qa',
@@ -72,12 +70,6 @@ const routes = [
         name: 'teacher-ai-summaries',
         component: () => import('@/views/teacher/ai/AIContentReviewView.vue'),
         meta: { title: 'AI 摘要审核与发布' },
-      },
-      {
-        path: 'students',
-        name: 'teacher-students',
-        component: () => import('@/views/teacher/student/StudentManagementView.vue'),
-        meta: { title: '学生管理' },
       },
       {
         path: 'notices',
@@ -108,24 +100,25 @@ const router = createRouter({
 
 router.beforeEach((to) => {
   const authStore = useAuthStore()
-  
-  // 1. 公开页面直接放行
-  if (to.meta.public) return true
 
-  // 2. 未登录跳转登录页
-  if (!authStore.isAuthenticated) {
+  if (to.meta.public) {
+    return true
+  }
+
+  if (!authStore.isAuthenticated.value) {
     return { name: 'login', query: { redirect: to.fullPath } }
   }
 
-  // 3. 角色校验 (STUDENT: 学生, TEACHER: 教师)
   const userRole = authStore.profile.value.role
+  if (!userRole) {
+    return { name: 'login', query: { redirect: to.fullPath } }
+  }
+
   if (to.meta.role !== undefined && to.meta.role !== userRole) {
-    // 角色不匹配，跳转到对应的首页或报错页
     if (userRole === 'TEACHER') {
       return { name: 'teacher-dashboard' }
-    } else {
-      return { name: 'student-home' }
     }
+    return { name: 'student-home' }
   }
 
   return true

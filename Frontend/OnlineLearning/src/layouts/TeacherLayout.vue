@@ -50,10 +50,8 @@ const authStore = useAuthStore()
 const menuList = [
   { label: '仪表盘', route: '/teacher/dashboard' },
   { label: '课程管理', route: '/teacher/courses' },
-  { label: '课程资源建设', route: '/teacher/resources' },
   { label: '在线问答管理', route: '/teacher/qa' },
   { label: 'AI 摘要审核与发布', route: '/teacher/ai-summaries' },
-  { label: '学生管理', route: '/teacher/students' },
   { label: '通知公告', route: '/teacher/notices' },
   { label: '个人中心', route: '/teacher/profile' },
 ]

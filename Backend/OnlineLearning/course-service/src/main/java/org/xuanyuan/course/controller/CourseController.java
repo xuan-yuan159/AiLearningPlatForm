@@ -83,7 +83,7 @@ public class CourseController {
         return Result.success(courseService.getCourseList(page, size, category, keyword));
     }
 
-    @Operation(summary = "获取课程统计报表", description = "获取课程相关学习数据报表")
+    @Operation(summary = "获取课程统计报表（TODO）", description = "获取课程相关学习数据报表（暂未实现）")
     @GetMapping("/{id}/statistics")
     public Result<Void> getCourseStatistics(
             @Parameter(description = "课程ID", required = true) @PathVariable("id") Long id) {

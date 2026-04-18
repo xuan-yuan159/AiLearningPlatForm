@@ -21,13 +21,6 @@ public class ResourceServiceImpl extends ServiceImpl<ResourceMapper, Resource> i
     private final CourseService courseService;
 
     @Override
-    public void uploadVideo() {
-        // TODO 视频上传待接入 OSS
-        // TODO 图片上传、富文本编辑器
-        throw new BaseException("视频上传功能待接入 OSS");
-    }
-
-    @Override
     public void downloadMaterials() {
         // TODO 课程资料打包下载
         throw new BaseException("课程资料打包下载功能待实现");

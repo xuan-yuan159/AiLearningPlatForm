@@ -18,6 +18,7 @@ import org.xuanyuan.upload.service.OssUploadService;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.time.LocalDate;
 import java.util.Locale;
 import java.util.Set;
@@ -48,7 +49,7 @@ public class OssUploadServiceImpl implements OssUploadService {
     @Transactional(rollbackFor = Exception.class)
     public UploadResult uploadVideo(MultipartFile file, Long courseId, String title, Long teacherId) {
         validateCommonParams(file, courseId, title);
-        validateCourseOwnership(courseId, teacherId);
+        validateCourseOwnershipForUpload(courseId, teacherId);
         validateFileType(file, true);
         return uploadAndPersist(file, courseId, title, RESOURCE_TYPE_VIDEO, "videos");
     }
@@ -57,9 +58,28 @@ public class OssUploadServiceImpl implements OssUploadService {
     @Transactional(rollbackFor = Exception.class)
     public UploadResult uploadImage(MultipartFile file, Long courseId, String title, Long teacherId) {
         validateCommonParams(file, courseId, title);
-        validateCourseOwnership(courseId, teacherId);
+        validateCourseOwnershipForUpload(courseId, teacherId);
         validateFileType(file, false);
         return uploadAndPersist(file, courseId, title, RESOURCE_TYPE_IMAGE, "images");
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteUploadedResource(Long resourceId, Long teacherId) {
+        if (resourceId == null || resourceId <= 0) {
+            throw new BaseException(400, "resourceId 参数不合法");
+        }
+
+        Resource resource = resourceMapper.selectById(resourceId);
+        if (resource == null) {
+            return;
+        }
+
+        validateCourseOwnership(resource.getCourseId(), teacherId);
+
+        String objectKey = resolveObjectKeyFromUrl(resource.getUrl());
+        deleteObject(objectKey);
+        resourceMapper.deleteById(resourceId);
     }
 
     private UploadResult uploadAndPersist(MultipartFile file, Long courseId, String title, Integer type, String typeDir) {
@@ -99,10 +119,20 @@ public class OssUploadServiceImpl implements OssUploadService {
         }
     }
 
-    private void validateCourseOwnership(Long courseId, Long teacherId) {
+    private void validateCourseOwnershipForUpload(Long courseId, Long teacherId) {
         Course course = courseMapper.selectById(courseId);
         if (course == null || Integer.valueOf(3).equals(course.getStatus())) {
             throw new BaseException(400, "课程不存在或已删除");
+        }
+        if (teacherId == null || !course.getTeacherId().equals(teacherId)) {
+            throw new BaseException(403, "无权限操作非本人课程资源");
+        }
+    }
+
+    private void validateCourseOwnership(Long courseId, Long teacherId) {
+        Course course = courseMapper.selectById(courseId);
+        if (course == null) {
+            throw new BaseException(400, "资源所属课程不存在");
         }
         if (teacherId == null || !course.getTeacherId().equals(teacherId)) {
             throw new BaseException(403, "无权限操作非本人课程资源");
@@ -200,6 +230,20 @@ public class OssUploadServiceImpl implements OssUploadService {
         }
     }
 
+    private void deleteObject(String objectKey) {
+        OSS ossClient = null;
+        try {
+            ossClient = buildOssClient();
+            ossClient.deleteObject(aliyunOssProperties.getBucketName(), objectKey);
+        } catch (Exception e) {
+            throw new BaseException("删除 OSS 资源失败: " + e.getMessage());
+        } finally {
+            if (ossClient != null) {
+                ossClient.shutdown();
+            }
+        }
+    }
+
     private OSS buildOssClient() {
         return new OSSClientBuilder().build(
                 normalizeEndpointForClient(aliyunOssProperties.getEndpoint()),
@@ -234,6 +278,26 @@ public class OssUploadServiceImpl implements OssUploadService {
             host = host.substring(0, host.length() - 1);
         }
         return host;
+    }
+
+    private String resolveObjectKeyFromUrl(String url) {
+        if (!StringUtils.hasText(url)) {
+            throw new BaseException(400, "资源URL为空，无法定位 OSS 对象");
+        }
+        try {
+            URI uri = URI.create(url.trim());
+            String path = uri.getPath();
+            if (!StringUtils.hasText(path) || "/".equals(path)) {
+                throw new BaseException(400, "资源URL路径为空，无法定位 OSS 对象");
+            }
+            String objectKey = path.startsWith("/") ? path.substring(1) : path;
+            if (!StringUtils.hasText(objectKey)) {
+                throw new BaseException(400, "资源URL无有效对象Key");
+            }
+            return objectKey;
+        } catch (IllegalArgumentException e) {
+            throw new BaseException(400, "资源URL格式不合法，无法定位 OSS 对象");
+        }
     }
 
     private void ensureOssConfigured() {

@@ -8,4 +8,6 @@ public interface OssUploadService {
     UploadResult uploadVideo(MultipartFile file, Long courseId, String title, Long teacherId);
 
     UploadResult uploadImage(MultipartFile file, Long courseId, String title, Long teacherId);
+
+    void deleteUploadedResource(Long resourceId, Long teacherId);
 }

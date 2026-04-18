@@ -54,6 +54,10 @@ aliyun:
   oss:
     endpoint: ${ALIYUN_OSS_ENDPOINT:oss-cn-beijing.aliyuncs.com}
     bucket-name: ${ALIYUN_OSS_BUCKET:your-bucket-name}
-    access-key-id: ${ALIYUN_OSS_ACCESS_KEY_ID:ENC(your-access-key-id)}
-    access-key-secret: ${ALIYUN_OSS_ACCESS_KEY_SECRET:ENC(your-access-key-secret)}
+    access-key-id: ${ALIYUN_OSS_ACCESS_KEY_ID:}
+    access-key-secret: ${ALIYUN_OSS_ACCESS_KEY_SECRET:}
 ```
+
+> ⚠️ 注意：不要把 `ENC(your-access-key-id)` 这类占位文案直接放到 Nacos。  
+> `ENC(...)` 必须是通过 Jasypt 生成的真实密文，否则会在启动时触发属性绑定失败。  
+> 开发环境可直接填明文；生产环境请填真实 `ENC(密文)`。
