@@ -47,3 +47,13 @@ spring:
     template:
       mandatory: true
 ```
+
+## 4. OSS 配置 (Data Id: application-oss.yml)
+```yaml
+aliyun:
+  oss:
+    endpoint: ${ALIYUN_OSS_ENDPOINT:oss-cn-beijing.aliyuncs.com}
+    bucket-name: ${ALIYUN_OSS_BUCKET:your-bucket-name}
+    access-key-id: ${ALIYUN_OSS_ACCESS_KEY_ID:ENC(your-access-key-id)}
+    access-key-secret: ${ALIYUN_OSS_ACCESS_KEY_SECRET:ENC(your-access-key-secret)}
+```

@@ -1,0 +1,40 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: upload-service
+  config:
+    import:
+      - optional:nacos:application-mysql.yml
+      - optional:nacos:application-oss.yml
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 123.57.31.8:8848
+        group: AI_LEARNING_PLATFORM_GROUP
+      config:
+        server-addr: 123.57.31.8:8848
+        file-extension: yml
+        group: DEFAULT_GROUP
+  servlet:
+    multipart:
+      max-file-size: 500MB
+      max-request-size: 500MB
+
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  global-config:
+    db-config:
+      id-type: auto
+  configuration:
+    map-underscore-to-camel-case: true
+
+jasypt:
+  encryptor:
+    password: xuanyuan-secret

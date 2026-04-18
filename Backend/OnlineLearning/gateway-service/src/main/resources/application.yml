@@ -39,6 +39,16 @@ spring:
             - Path=/course-service/**
           filters:
             - StripPrefix=1
+        - id: upload-service-api
+          uri: lb://upload-service
+          predicates:
+            - Path=/upload/**
+        - id: upload-service-direct
+          uri: lb://upload-service
+          predicates:
+            - Path=/upload-service/**
+          filters:
+            - StripPrefix=1
   config:
     import:
       - optional:nacos:application-redis.yml
@@ -56,6 +66,7 @@ auth:
       - /favicon.ico
       - /auth-service/v3/api-docs
       - /course-service/v3/api-docs
+      - /upload-service/v3/api-docs
       - /*/v3/api-docs/**
 
 knife4j:
@@ -72,6 +83,10 @@ knife4j:
         url: /course-service/v3/api-docs
         service-name: course-service
         order: 2
+      - name: upload-service
+        url: /upload-service/v3/api-docs
+        service-name: upload-service
+        order: 3
 
 jasypt:
   encryptor:
