@@ -12,10 +12,22 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true,
       },
-      '/api': {
+      '/course': {
         target: 'http://localhost:8080',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
+      },
+      '/chapter': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      '/resource': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      '/upload': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        ws: true,
       },
     },
   },
