@@ -15,10 +15,48 @@ const routes = [
     meta: { public: true, title: '注册' },
   },
   {
-    path: '/student/home',
-    name: 'student-home',
-    component: () => import('@/views/student/StudentHomeView.vue'),
-    meta: { requiresAuth: true, title: '学生首页' },
+    path: '/student',
+    component: () => import('@/views/student/StudentLayoutView.vue'),
+    redirect: '/student/home',
+    meta: { requiresAuth: true, role: 'STUDENT', title: '学生端' },
+    children: [
+      {
+        path: 'home',
+        name: 'student-home',
+        component: () => import('@/views/student/StudentHomeView.vue'),
+        meta: { title: '学生首页' },
+      },
+      {
+        path: 'courses',
+        name: 'student-courses',
+        component: () => import('@/views/student/StudentCoursesView.vue'),
+        meta: { title: '课程广场' },
+      },
+      {
+        path: 'learning',
+        name: 'student-learning',
+        component: () => import('@/views/student/StudentLearningView.vue'),
+        meta: { title: '学习中心' },
+      },
+      {
+        path: 'course/:courseId',
+        name: 'student-course-detail',
+        component: () => import('@/views/student/StudentCourseDetailView.vue'),
+        meta: { title: '课程学习' },
+      },
+      {
+        path: 'qa',
+        name: 'student-qa',
+        component: () => import('@/views/student/StudentQaPlaceholderView.vue'),
+        meta: { title: '问答中心' },
+      },
+      {
+        path: 'ai-assistant',
+        name: 'student-ai-assistant',
+        component: () => import('@/views/student/StudentAiAssistantPlaceholderView.vue'),
+        meta: { title: 'AI学习建议' },
+      },
+    ],
   },
   {
     path: '/teacher',
@@ -57,10 +95,13 @@ const routes = [
 ]
 
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
+  history: createWebHistory(import.meta.env.BASE_URL), // 使用 HTML5 history 模式
   routes,
 })
 
+/**
+ * 全局路由守卫：处理鉴权、角色与标题。
+ */
 router.beforeEach((to) => {
   const auth = useAuth()
 

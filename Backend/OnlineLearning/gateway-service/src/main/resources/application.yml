@@ -53,6 +53,16 @@ spring:
             - Path=/upload-service/**
           filters:
             - StripPrefix=1
+        - id: learning-service-api
+          uri: lb://learning-service # 学习中心服务路由
+          predicates:
+            - Path=/learning/** # 学习中心统一入口
+        - id: learning-service-direct
+          uri: lb://learning-service # learning-service 直连调试路由
+          predicates:
+            - Path=/learning-service/** # 直连服务前缀
+          filters:
+            - StripPrefix=1 # 移除前缀后转发
   config:
     import:
       - optional:nacos:application-redis.yml
@@ -71,6 +81,7 @@ auth:
       - /auth-service/v3/api-docs
       - /course-service/v3/api-docs
       - /upload-service/v3/api-docs
+      - /learning-service/v3/api-docs # learning-service OpenAPI 文档白名单
       - /*/v3/api-docs/**
 
 knife4j:
@@ -91,6 +102,10 @@ knife4j:
         url: /upload-service/v3/api-docs
         service-name: upload-service
         order: 3
+      - name: learning-service
+        url: /learning-service/v3/api-docs # learning-service OpenAPI 地址
+        service-name: learning-service # 服务名
+        order: 4 # 文档排序
 
 jasypt:
   encryptor:

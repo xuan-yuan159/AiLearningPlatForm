@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import org.xuanyuan.common.context.UserContext;
 import org.xuanyuan.common.result.Result;
+import org.xuanyuan.common.util.RoleUtils;
 import org.xuanyuan.upload.dto.UploadProgressRequest;
 import org.xuanyuan.upload.dto.UploadResult;
 import org.xuanyuan.upload.dto.UploadTaskCreateRequest;
@@ -26,7 +27,7 @@ import org.xuanyuan.upload.service.UploadTaskService;
 
 import java.util.List;
 
-@Tag(name = "上传管理", description = "资源上传、进度查询与清理")
+@Tag(name = "上传管理", description = "教师上传接口与进度管理")
 @RestController
 @RequestMapping("/upload")
 @RequiredArgsConstructor
@@ -35,51 +36,74 @@ public class UploadController {
     private final OssUploadService ossUploadService;
     private final UploadTaskService uploadTaskService;
 
-    @Operation(summary = "创建上传任务", description = "兼容旧流程，前端可先创建任务后再上传")
+    /**
+     * 创建上传任务（教师）
+     */
+    @Operation(summary = "创建上传任务", description = "上传前先创建任务")
     @PostMapping("/tasks")
     public Result<UploadTaskCreateResult> createTask(@RequestBody UploadTaskCreateRequest request) {
-        Long teacherId = UserContext.getUserId();
+        RoleUtils.assertTeacherRole();
+        Long teacherId = UserContext.getUserId(); // 从网关注入头中读取当前用户ID
         return Result.success(uploadTaskService.createTask(request, teacherId));
     }
 
+    /**
+     * 兼容旧流程的上报进度接口（教师）
+     */
     @Deprecated
-    @Operation(summary = "上报上传进度", description = "兼容旧流程，新流程改为后端自动采集并通过 WebSocket 推送")
+    @Operation(summary = "上报上传进度（兼容）", description = "兼容旧流程的进度上报接口")
     @PatchMapping("/tasks/{taskId}/progress")
     public Result<UploadTaskInfo> reportProgress(
-            @Parameter(description = "上传任务 ID", required = true) @PathVariable("taskId") String taskId,
+            @Parameter(description = "任务ID", required = true) @PathVariable("taskId") String taskId,
             @RequestBody UploadProgressRequest request) {
-        Long teacherId = UserContext.getUserId();
+        RoleUtils.assertTeacherRole();
+        Long teacherId = UserContext.getUserId(); // 从网关注入头中读取当前用户ID
         return Result.success(uploadTaskService.reportProgress(taskId, request, teacherId));
     }
 
-    @Operation(summary = "查询上传任务", description = "查询单个上传任务的当前状态")
+    /**
+     * 查询单个上传任务（教师）
+     */
+    @Operation(summary = "查询上传任务", description = "查询单个任务状态")
     @GetMapping("/tasks/{taskId}")
     public Result<UploadTaskInfo> getTask(
-            @Parameter(description = "上传任务 ID", required = true) @PathVariable("taskId") String taskId) {
-        Long teacherId = UserContext.getUserId();
+            @Parameter(description = "任务ID", required = true) @PathVariable("taskId") String taskId) {
+        RoleUtils.assertTeacherRole();
+        Long teacherId = UserContext.getUserId(); // 从网关注入头中读取当前用户ID
         return Result.success(uploadTaskService.getTask(taskId, teacherId));
     }
 
-    @Operation(summary = "查询最近上传任务", description = "返回当前教师最近的上传任务列表")
+    /**
+     * 查询最近上传任务（教师）
+     */
+    @Operation(summary = "查询最近上传任务", description = "查询当前教师最近上传任务列表")
     @GetMapping("/tasks/recent")
     public Result<List<UploadTaskInfo>> listRecentTasks() {
-        Long teacherId = UserContext.getUserId();
+        RoleUtils.assertTeacherRole();
+        Long teacherId = UserContext.getUserId(); // 从网关注入头中读取当前用户ID
         return Result.success(uploadTaskService.listRecentTasks(teacherId));
     }
 
-    @Operation(summary = "取消上传任务", description = "标记取消任务；如已写入资源，则一并清理资源")
+    /**
+     * 取消上传任务（教师）
+     */
+    @Operation(summary = "取消上传任务", description = "取消上传并在需要时清理资源")
     @PostMapping("/tasks/{taskId}/cancel")
     public Result<UploadTaskInfo> cancelTask(
-            @Parameter(description = "上传任务 ID", required = true) @PathVariable("taskId") String taskId) {
-        Long teacherId = UserContext.getUserId();
+            @Parameter(description = "任务ID", required = true) @PathVariable("taskId") String taskId) {
+        RoleUtils.assertTeacherRole();
+        Long teacherId = UserContext.getUserId(); // 从网关注入头中读取当前用户ID
         UploadTaskInfo task = uploadTaskService.getTask(taskId, teacherId);
         if (task.getResourceId() != null) {
-            ossUploadService.deleteUploadedResource(task.getResourceId(), teacherId);
+            ossUploadService.deleteUploadedResource(task.getResourceId(), teacherId); // 任务已落库时同步清理资源
         }
         return Result.success(uploadTaskService.markCanceled(taskId, teacherId));
     }
 
-    @Operation(summary = "统一资源上传", description = "前端生成 uploadTaskId 后，上传文件并由后端实时推送进度")
+    /**
+     * 统一资源上传（教师）
+     */
+    @Operation(summary = "统一资源上传", description = "统一处理资源上传")
     @PostMapping("/resources")
     public Result<UploadTaskInfo> uploadResource(
             @RequestParam("file") MultipartFile file,
@@ -87,37 +111,50 @@ public class UploadController {
             @RequestParam("title") String title,
             @RequestParam("resourceType") String resourceType,
             @RequestParam("uploadTaskId") String uploadTaskId) {
-        Long teacherId = UserContext.getUserId();
+        RoleUtils.assertTeacherRole();
+        Long teacherId = UserContext.getUserId(); // 从网关注入头中读取当前用户ID
         return Result.success(ossUploadService.uploadResource(file, courseId, title, resourceType, teacherId, uploadTaskId));
     }
 
-    @Operation(summary = "视频上传", description = "兼容旧接口，内部复用统一上传逻辑")
+    /**
+     * 视频上传兼容接口（教师）
+     */
+    @Operation(summary = "上传视频（兼容）", description = "兼容旧前端的视频上传接口")
     @PostMapping("/video")
     public Result<UploadResult> uploadVideo(
             @RequestParam("file") MultipartFile file,
             @RequestParam("courseId") Long courseId,
             @RequestParam("title") String title,
             @RequestParam(value = "uploadTaskId", required = false) String uploadTaskId) {
-        Long teacherId = UserContext.getUserId();
+        RoleUtils.assertTeacherRole();
+        Long teacherId = UserContext.getUserId(); // 从网关注入头中读取当前用户ID
         return Result.success(ossUploadService.uploadVideo(file, courseId, title, teacherId, uploadTaskId));
     }
 
-    @Operation(summary = "图片上传", description = "兼容旧接口，内部复用统一上传逻辑")
+    /**
+     * 图片上传兼容接口（教师）
+     */
+    @Operation(summary = "上传图片（兼容）", description = "兼容旧前端的图片上传接口")
     @PostMapping("/image")
     public Result<UploadResult> uploadImage(
             @RequestParam("file") MultipartFile file,
             @RequestParam("courseId") Long courseId,
             @RequestParam("title") String title,
             @RequestParam(value = "uploadTaskId", required = false) String uploadTaskId) {
-        Long teacherId = UserContext.getUserId();
+        RoleUtils.assertTeacherRole();
+        Long teacherId = UserContext.getUserId(); // 从网关注入头中读取当前用户ID
         return Result.success(ossUploadService.uploadImage(file, courseId, title, teacherId, uploadTaskId));
     }
 
-    @Operation(summary = "删除已上传资源", description = "取消上传或手动清理时，删除 OSS 对象并移除 resource 记录")
+    /**
+     * 删除已上传资源（教师）
+     */
+    @Operation(summary = "删除已上传资源", description = "删除 OSS 对象与数据库记录")
     @DeleteMapping("/resource/{resourceId}")
     public Result<Void> deleteUploadedResource(
-            @Parameter(description = "资源 ID", required = true) @PathVariable("resourceId") Long resourceId) {
-        Long teacherId = UserContext.getUserId();
+            @Parameter(description = "资源ID", required = true) @PathVariable("resourceId") Long resourceId) {
+        RoleUtils.assertTeacherRole();
+        Long teacherId = UserContext.getUserId(); // 从网关注入头中读取当前用户ID
         ossUploadService.deleteUploadedResource(resourceId, teacherId);
         return Result.success();
     }

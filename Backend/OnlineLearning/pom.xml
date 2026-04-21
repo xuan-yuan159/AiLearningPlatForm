@@ -21,6 +21,7 @@
         <module>gateway-service</module>
         <module>course-service</module>
         <module>upload-service</module>
+        <module>learning-service</module>
     </modules>
 
     <properties>

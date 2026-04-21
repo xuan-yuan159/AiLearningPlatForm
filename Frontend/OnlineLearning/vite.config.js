@@ -29,6 +29,10 @@ export default defineConfig({
         changeOrigin: true,
         ws: true,
       },
+      '/learning': {
+        target: 'http://localhost:8080', // 学习服务统一经网关转发
+        changeOrigin: true,
+      },
     },
   },
   resolve: {

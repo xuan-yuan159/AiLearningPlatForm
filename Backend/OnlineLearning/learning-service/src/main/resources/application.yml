@@ -1,0 +1,36 @@
+server:
+  port: 8084 # learning-service 默认端口
+
+spring:
+  application:
+    name: learning-service # 服务注册名
+  config:
+    import:
+      - optional:nacos:application-mysql.yml # 复用 MySQL 配置
+      - optional:nacos:application-redis.yml # 复用 Redis 配置
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 123.57.31.8:8848 # Nacos 注册中心地址
+        group: AI_LEARNING_PLATFORM_GROUP # 服务分组
+      config:
+        server-addr: 123.57.31.8:8848 # Nacos 配置中心地址
+        file-extension: yml # 配置文件后缀
+        group: DEFAULT_GROUP # 配置分组
+
+springdoc:
+  api-docs:
+    enabled: true # 开启 OpenAPI 文档
+    path: /v3/api-docs # 文档路径
+
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml # Mapper XML 扫描路径（当前主要使用注解/通用 Mapper）
+  global-config:
+    db-config:
+      id-type: auto # 主键自增策略
+  configuration:
+    map-underscore-to-camel-case: true # 下划线字段自动映射驼峰属性
+
+jasypt:
+  encryptor:
+    password: xuanyuan-secret # 配置解密密钥
