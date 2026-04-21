@@ -7,6 +7,7 @@ spring:
   config:
     import:
       - optional:nacos:application-mysql.yml
+      - optional:nacos:application-redis.yml
       - optional:nacos:application-oss.yml
   cloud:
     nacos:

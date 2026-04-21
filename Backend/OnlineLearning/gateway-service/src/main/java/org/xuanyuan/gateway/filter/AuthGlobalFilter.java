@@ -10,6 +10,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
+import org.springframework.util.StringUtils;
 import org.springframework.web.server.ServerWebExchange;
 import org.xuanyuan.common.util.JwtUtils; // Need to move JwtUtils to common or duplicate it.
 import org.xuanyuan.gateway.config.WhitelistConfig;
@@ -41,14 +42,13 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
             }
         }
 
-        // 2. Parse JWT from Authorization header
-        String authHeader = request.getHeaders().getFirst("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+        // 2. Parse JWT from Authorization header. Upload WebSocket allows token query parameter.
+        String token = resolveToken(request, path);
+        if (!StringUtils.hasText(token)) {
             exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
             return exchange.getResponse().setComplete();
         }
 
-        String token = authHeader.substring(7);
         try {
             Claims claims = jwtUtils.parseToken(token);
             String userId = claims.getSubject();
@@ -71,5 +71,25 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
     @Override
     public int getOrder() {
         return -1;
+    }
+
+    private String resolveToken(ServerHttpRequest request, String path) {
+        String authHeader = request.getHeaders().getFirst("Authorization");
+        if (StringUtils.hasText(authHeader) && authHeader.startsWith("Bearer ")) {
+            return authHeader.substring(7);
+        }
+
+        if (!pathMatcher.match("/upload/ws/**", path)) {
+            return null;
+        }
+
+        String queryToken = request.getQueryParams().getFirst("token");
+        if (!StringUtils.hasText(queryToken)) {
+            return null;
+        }
+        if (queryToken.startsWith("Bearer ")) {
+            return queryToken.substring(7);
+        }
+        return queryToken;
     }
 }

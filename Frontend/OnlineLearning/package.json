@@ -8,13 +8,13 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint src --ext .js,.vue",
-    "typecheck": "node -e \"console.log('项目为 JavaScript + Vue，无需 TypeScript 类型检查')\"",
-    "test": "jest --runInBand",
-    "test:coverage": "jest --coverage --runInBand",
+    "typecheck": "node -e \"console.log('JavaScript 项目无需 TypeScript 类型检查')\"",
     "format": "prettier --write .",
     "prepare": "husky install"
   },
   "dependencies": {
+    "@element-plus/icons-vue": "^2.3.2",
+    "element-plus": "^2.13.7",
     "vue": "^3.5.30",
     "vue-router": "^4.5.1"
   },
@@ -26,20 +26,14 @@
     "*.{scss,md,json}": "prettier --write"
   },
   "devDependencies": {
-    "@babel/eslint-parser": "^7.27.1",
     "@babel/core": "^7.27.1",
+    "@babel/eslint-parser": "^7.27.1",
     "@babel/preset-env": "^7.27.2",
-    "@vue/test-utils": "^2.4.6",
-    "@vue/vue3-jest": "^29.2.6",
     "@vitejs/plugin-vue": "^6.0.4",
-    "babel-jest": "^29.7.0",
     "eslint": "^8.57.1",
     "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-jest": "^29.0.1",
     "eslint-plugin-vue": "^9.33.0",
     "husky": "^9.1.7",
-    "jest": "^29.7.0",
-    "jest-environment-jsdom": "^29.7.0",
     "lint-staged": "^16.2.3",
     "prettier": "3.8.1",
     "sass": "^1.94.0",
@@ -51,3 +45,4 @@
     "node": "^20.19.0 || >=22.12.0"
   }
 }
+

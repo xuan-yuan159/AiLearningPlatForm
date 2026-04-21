@@ -9,13 +9,17 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 import org.xuanyuan.common.exception.BaseException;
 import org.xuanyuan.upload.config.AliyunOssProperties;
+import org.xuanyuan.upload.constant.UploadTaskStatus;
 import org.xuanyuan.upload.dto.UploadResult;
+import org.xuanyuan.upload.dto.UploadTaskInfo;
 import org.xuanyuan.upload.entity.Course;
 import org.xuanyuan.upload.entity.Resource;
 import org.xuanyuan.upload.mapper.CourseMapper;
 import org.xuanyuan.upload.mapper.ResourceMapper;
 import org.xuanyuan.upload.service.OssUploadService;
+import org.xuanyuan.upload.service.UploadTaskService;
 
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -44,23 +48,77 @@ public class OssUploadServiceImpl implements OssUploadService {
     private final AliyunOssProperties aliyunOssProperties;
     private final CourseMapper courseMapper;
     private final ResourceMapper resourceMapper;
+    private final UploadTaskService uploadTaskService;
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public UploadTaskInfo uploadResource(MultipartFile file, Long courseId, String title, String resourceType,
+                                         Long teacherId, String uploadTaskId) {
+        boolean taskPrepared = false;
+        if (StringUtils.hasText(uploadTaskId) && teacherId != null) {
+            uploadTaskService.prepareTask(uploadTaskId, teacherId);
+            taskPrepared = true;
+        }
+        try {
+            validateCommonParams(file, courseId, title);
+            UploadTarget uploadTarget = resolveUploadTarget(resourceType);
+            validateCourseOwnershipForUpload(courseId, teacherId);
+            validateFileType(file, uploadTarget.resourceTypeCode().equals(RESOURCE_TYPE_VIDEO));
+
+            if (StringUtils.hasText(uploadTaskId) && teacherId != null) {
+                uploadTaskService.bindTaskMetadata(
+                        uploadTaskId,
+                        teacherId,
+                        courseId,
+                        title,
+                        uploadTarget.resourceTypeName(),
+                        file.getOriginalFilename(),
+                        file.getSize()
+                );
+            }
+
+            UploadResult result = uploadAndPersist(
+                    file,
+                    courseId,
+                    title,
+                    uploadTarget.resourceTypeCode(),
+                    uploadTarget.ossDir(),
+                    uploadTaskId
+            );
+            if (!StringUtils.hasText(uploadTaskId)) {
+                return buildStandaloneResult(result, courseId, title, uploadTarget.resourceTypeName(), file);
+            }
+            return uploadTaskService.getTask(uploadTaskId, teacherId);
+        } catch (Exception e) {
+            if (taskPrepared) {
+                uploadTaskService.markError(uploadTaskId, e.getMessage());
+            }
+            throw e;
+        }
+    }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public UploadResult uploadVideo(MultipartFile file, Long courseId, String title, Long teacherId) {
-        validateCommonParams(file, courseId, title);
-        validateCourseOwnershipForUpload(courseId, teacherId);
-        validateFileType(file, true);
-        return uploadAndPersist(file, courseId, title, RESOURCE_TYPE_VIDEO, "videos");
+        return uploadVideo(file, courseId, title, teacherId, null);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public UploadResult uploadVideo(MultipartFile file, Long courseId, String title, Long teacherId, String uploadTaskId) {
+        return toUploadResult(uploadResource(file, courseId, title, "video", teacherId, uploadTaskId));
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public UploadResult uploadImage(MultipartFile file, Long courseId, String title, Long teacherId) {
-        validateCommonParams(file, courseId, title);
-        validateCourseOwnershipForUpload(courseId, teacherId);
-        validateFileType(file, false);
-        return uploadAndPersist(file, courseId, title, RESOURCE_TYPE_IMAGE, "images");
+        return uploadImage(file, courseId, title, teacherId, null);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public UploadResult uploadImage(MultipartFile file, Long courseId, String title, Long teacherId, String uploadTaskId) {
+        return toUploadResult(uploadResource(file, courseId, title, "image", teacherId, uploadTaskId));
     }
 
     @Override
@@ -82,13 +140,17 @@ public class OssUploadServiceImpl implements OssUploadService {
         resourceMapper.deleteById(resourceId);
     }
 
-    private UploadResult uploadAndPersist(MultipartFile file, Long courseId, String title, Integer type, String typeDir) {
-        ensureOssConfigured();
-
-        String objectKey = buildObjectKey(file, typeDir);
-        String url = uploadToOss(file, objectKey);
-
+    private UploadResult uploadAndPersist(MultipartFile file, Long courseId, String title, Integer type,
+                                          String typeDir, String uploadTaskId) {
+        String objectKey = null;
         try {
+            uploadTaskService.markStage(uploadTaskId, UploadTaskStatus.RECEIVED, "后端已接收文件", 90);
+            ensureOssConfigured();
+
+            objectKey = buildObjectKey(file, typeDir);
+            String url = uploadToOss(file, objectKey, uploadTaskId);
+
+            uploadTaskService.markStage(uploadTaskId, UploadTaskStatus.PERSISTING, "保存资源记录", 99);
             Resource resource = new Resource();
             resource.setCourseId(courseId);
             resource.setChapterId(null);
@@ -100,11 +162,50 @@ public class OssUploadServiceImpl implements OssUploadService {
             resource.setSortOrder(0);
 
             resourceMapper.insert(resource);
-            return new UploadResult(resource.getId(), url, objectKey);
+            UploadResult result = new UploadResult(resource.getId(), url, objectKey);
+            uploadTaskService.markSuccess(uploadTaskId, result);
+            return result;
         } catch (Exception e) {
-            deleteObjectQuietly(objectKey);
-            throw new BaseException("上传成功但写入资源记录失败: " + e.getMessage());
+            if (StringUtils.hasText(objectKey)) {
+                deleteObjectQuietly(objectKey);
+            }
+            throw e;
         }
+    }
+
+    private UploadTarget resolveUploadTarget(String resourceType) {
+        if (!StringUtils.hasText(resourceType)) {
+            throw new BaseException(400, "resourceType 不能为空");
+        }
+        String normalized = resourceType.trim().toLowerCase(Locale.ROOT);
+        return switch (normalized) {
+            case "video" -> new UploadTarget(RESOURCE_TYPE_VIDEO, "video", "videos");
+            case "image" -> new UploadTarget(RESOURCE_TYPE_IMAGE, "image", "images");
+            default -> throw new BaseException(400, "resourceType 仅支持 video 或 image");
+        };
+    }
+
+    private UploadTaskInfo buildStandaloneResult(UploadResult result, Long courseId, String title,
+                                                 String resourceType, MultipartFile file) {
+        UploadTaskInfo taskInfo = new UploadTaskInfo();
+        taskInfo.setCourseId(courseId);
+        taskInfo.setTitle(title.trim());
+        taskInfo.setResourceType(resourceType);
+        taskInfo.setFileName(file.getOriginalFilename());
+        taskInfo.setFileSize(file.getSize());
+        taskInfo.setStatus(UploadTaskStatus.SUCCESS);
+        taskInfo.setStage("上传完成");
+        taskInfo.setPercent(100);
+        taskInfo.setLoadedBytes(file.getSize());
+        taskInfo.setTotalBytes(file.getSize());
+        taskInfo.setResourceId(result.getResourceId());
+        taskInfo.setUrl(result.getUrl());
+        taskInfo.setObjectKey(result.getObjectKey());
+        return taskInfo;
+    }
+
+    private UploadResult toUploadResult(UploadTaskInfo taskInfo) {
+        return new UploadResult(taskInfo.getResourceId(), taskInfo.getUrl(), taskInfo.getObjectKey());
     }
 
     private void validateCommonParams(MultipartFile file, Long courseId, String title) {
@@ -198,12 +299,14 @@ public class OssUploadServiceImpl implements OssUploadService {
         };
     }
 
-    private String uploadToOss(MultipartFile file, String objectKey) {
+    private String uploadToOss(MultipartFile file, String objectKey, String uploadTaskId) {
         OSS ossClient = null;
         try {
             ossClient = buildOssClient();
-            try (InputStream inputStream = file.getInputStream()) {
-                ossClient.putObject(aliyunOssProperties.getBucketName(), objectKey, inputStream);
+            try (InputStream inputStream = file.getInputStream();
+                 InputStream progressInputStream = new OssProgressInputStream(inputStream, file.getSize(), uploadTaskId, uploadTaskService)) {
+                uploadTaskService.markStage(uploadTaskId, UploadTaskStatus.OSS_UPLOADING, "上传到 OSS 中", 90);
+                ossClient.putObject(aliyunOssProperties.getBucketName(), objectKey, progressInputStream);
             }
             return buildPublicUrl(objectKey);
         } catch (IOException e) {
@@ -282,21 +385,21 @@ public class OssUploadServiceImpl implements OssUploadService {
 
     private String resolveObjectKeyFromUrl(String url) {
         if (!StringUtils.hasText(url)) {
-            throw new BaseException(400, "资源URL为空，无法定位 OSS 对象");
+            throw new BaseException(400, "资源 URL 为空，无法定位 OSS 对象");
         }
         try {
             URI uri = URI.create(url.trim());
             String path = uri.getPath();
             if (!StringUtils.hasText(path) || "/".equals(path)) {
-                throw new BaseException(400, "资源URL路径为空，无法定位 OSS 对象");
+                throw new BaseException(400, "资源 URL 路径为空，无法定位 OSS 对象");
             }
             String objectKey = path.startsWith("/") ? path.substring(1) : path;
             if (!StringUtils.hasText(objectKey)) {
-                throw new BaseException(400, "资源URL无有效对象Key");
+                throw new BaseException(400, "资源 URL 无有效对象 key");
             }
             return objectKey;
         } catch (IllegalArgumentException e) {
-            throw new BaseException(400, "资源URL格式不合法，无法定位 OSS 对象");
+            throw new BaseException(400, "资源 URL 格式不合法，无法定位 OSS 对象");
         }
     }
 
@@ -306,6 +409,71 @@ public class OssUploadServiceImpl implements OssUploadService {
                 || !StringUtils.hasText(aliyunOssProperties.getAccessKeyId())
                 || !StringUtils.hasText(aliyunOssProperties.getAccessKeySecret())) {
             throw new BaseException("OSS 配置不完整，请检查 Nacos 的 application-oss.yml");
+        }
+    }
+
+    private record UploadTarget(Integer resourceTypeCode, String resourceTypeName, String ossDir) {
+    }
+
+    private static class OssProgressInputStream extends FilterInputStream {
+
+        private static final long REPORT_STEP_BYTES = 256 * 1024;
+
+        private final long totalBytes;
+        private final String uploadTaskId;
+        private final UploadTaskService uploadTaskService;
+        private long loadedBytes;
+        private long lastReportedBytes;
+        private int lastReportedPercent = 89;
+
+        private OssProgressInputStream(InputStream in, long totalBytes, String uploadTaskId,
+                                       UploadTaskService uploadTaskService) {
+            super(in);
+            this.totalBytes = Math.max(0L, totalBytes);
+            this.uploadTaskId = uploadTaskId;
+            this.uploadTaskService = uploadTaskService;
+        }
+
+        @Override
+        public int read() throws IOException {
+            int value = super.read();
+            if (value != -1) {
+                afterRead(1);
+            }
+            return value;
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            int count = super.read(b, off, len);
+            afterRead(count);
+            return count;
+        }
+
+        @Override
+        public int read(byte[] b) throws IOException {
+            int count = in.read(b);
+            afterRead(count);
+            return count;
+        }
+
+        private void afterRead(int count) {
+            if (count <= 0 || !StringUtils.hasText(uploadTaskId)) {
+                return;
+            }
+            loadedBytes += count;
+            int percent = totalBytes > 0
+                    ? (int) Math.min(98L, 90L + loadedBytes * 8L / totalBytes)
+                    : 90;
+            boolean shouldReport = loadedBytes - lastReportedBytes >= REPORT_STEP_BYTES
+                    || percent != lastReportedPercent
+                    || (totalBytes > 0 && loadedBytes >= totalBytes);
+            if (!shouldReport) {
+                return;
+            }
+            lastReportedBytes = loadedBytes;
+            lastReportedPercent = percent;
+            uploadTaskService.markStage(uploadTaskId, UploadTaskStatus.OSS_UPLOADING, "上传到 OSS 中", percent);
         }
     }
 }
