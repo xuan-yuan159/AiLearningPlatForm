@@ -31,6 +31,30 @@ const activeMenu = computed(() => route.path)
 .sidebar-menu {
   border-right: none;
   background: transparent;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sidebar-menu :deep(.el-menu-item) {
+  margin: 2px 4px;
+  border-radius: 10px;
+  color: #1e3a8a;
+  transition: all 0.2s ease;
+}
+
+.sidebar-menu :deep(.el-menu-item:hover) {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.sidebar-menu :deep(.el-menu-item.is-active) {
+  background: linear-gradient(90deg, #2563eb 0%, #3b82f6 100%);
+  color: #ffffff;
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.24);
+}
+
+.sidebar-menu :deep(.el-menu-item .el-icon) {
+  color: inherit;
 }
 </style>
-

@@ -2,6 +2,7 @@ package org.xuanyuan.upload.service.impl;
 
 import com.alibaba.fastjson2.JSON;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -14,6 +15,7 @@ import org.xuanyuan.upload.dto.UploadTaskCreateResult;
 import org.xuanyuan.upload.dto.UploadTaskInfo;
 import org.xuanyuan.upload.entity.Course;
 import org.xuanyuan.upload.mapper.CourseMapper;
+import org.xuanyuan.upload.service.UploadProgressSessionService;
 import org.xuanyuan.upload.service.UploadTaskService;
 
 import java.time.LocalDateTime;
@@ -24,6 +26,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class UploadTaskServiceImpl implements UploadTaskService {
@@ -39,6 +42,7 @@ public class UploadTaskServiceImpl implements UploadTaskService {
 
     private final StringRedisTemplate redisTemplate;
     private final CourseMapper courseMapper;
+    private final UploadProgressSessionService uploadProgressSessionService;
 
     @Override
     public UploadTaskCreateResult createTask(UploadTaskCreateRequest request, Long teacherId) {
@@ -61,14 +65,14 @@ public class UploadTaskServiceImpl implements UploadTaskService {
 
     @Override
     public UploadTaskInfo prepareTask(String taskId, Long teacherId) {
-        validateTaskId(taskId);
+        String normalizedTaskId = normalizeTaskId(taskId);
         validateTeacherId(teacherId);
 
-        UploadTaskInfo task = loadTask(taskId);
+        UploadTaskInfo task = loadTask(normalizedTaskId);
         if (task == null) {
             String now = nowText();
             task = new UploadTaskInfo();
-            task.setTaskId(taskId);
+            task.setTaskId(normalizedTaskId);
             task.setTeacherId(teacherId);
             task.setStatus(UploadTaskStatus.CREATED);
             task.setStage("等待上传");
@@ -78,7 +82,7 @@ public class UploadTaskServiceImpl implements UploadTaskService {
             task.setCreatedAt(now);
             task.setUpdatedAt(now);
             saveWorkingTask(task);
-            rememberRecentTask(teacherId, taskId);
+            rememberRecentTask(teacherId, normalizedTaskId);
             publish(task);
             return task;
         }
@@ -90,7 +94,7 @@ public class UploadTaskServiceImpl implements UploadTaskService {
     @Override
     public UploadTaskInfo bindTaskMetadata(String taskId, Long teacherId, Long courseId, String title,
                                            String resourceType, String fileName, Long fileSize) {
-        UploadTaskInfo task = prepareTask(taskId, teacherId);
+        UploadTaskInfo task = prepareTask(normalizeTaskId(taskId), teacherId);
         if (isFinished(task.getStatus())) {
             return task;
         }
@@ -111,11 +115,12 @@ public class UploadTaskServiceImpl implements UploadTaskService {
 
     @Override
     public UploadTaskInfo recordReceivingProgress(String taskId, Long teacherId, Long loadedBytes, Long totalBytes) {
-        if (!StringUtils.hasText(taskId) || teacherId == null) {
+        String normalizedTaskId = normalizeTaskIdOrNull(taskId);
+        if (!StringUtils.hasText(normalizedTaskId) || teacherId == null) {
             return null;
         }
 
-        UploadTaskInfo task = prepareTask(taskId, teacherId);
+        UploadTaskInfo task = prepareTask(normalizedTaskId, teacherId);
         if (isFinished(task.getStatus())) {
             return task;
         }
@@ -137,7 +142,7 @@ public class UploadTaskServiceImpl implements UploadTaskService {
 
     @Override
     public UploadTaskInfo reportProgress(String taskId, UploadProgressRequest request, Long teacherId) {
-        UploadTaskInfo task = getTask(taskId, teacherId);
+        UploadTaskInfo task = getTask(normalizeTaskId(taskId), teacherId);
         if (isFinished(task.getStatus())) {
             return task;
         }
@@ -155,7 +160,7 @@ public class UploadTaskServiceImpl implements UploadTaskService {
 
     @Override
     public UploadTaskInfo getTask(String taskId, Long teacherId) {
-        UploadTaskInfo task = loadTask(taskId);
+        UploadTaskInfo task = loadTask(normalizeTaskId(taskId));
         if (task == null) {
             throw new BaseException(404, "上传任务不存在或已过期");
         }
@@ -172,7 +177,11 @@ public class UploadTaskServiceImpl implements UploadTaskService {
             return result;
         }
         for (String taskId : taskIds) {
-            UploadTaskInfo task = loadTask(taskId);
+            String normalizedTaskId = normalizeTaskIdOrNull(taskId);
+            if (!StringUtils.hasText(normalizedTaskId)) {
+                continue;
+            }
+            UploadTaskInfo task = loadTask(normalizedTaskId);
             if (task != null && teacherId.equals(task.getTeacherId())) {
                 result.add(task);
             }
@@ -182,10 +191,11 @@ public class UploadTaskServiceImpl implements UploadTaskService {
 
     @Override
     public UploadTaskInfo markStage(String taskId, String status, String stage, Integer percent) {
-        if (!StringUtils.hasText(taskId)) {
+        String normalizedTaskId = normalizeTaskIdOrNull(taskId);
+        if (!StringUtils.hasText(normalizedTaskId)) {
             return null;
         }
-        UploadTaskInfo task = loadTask(taskId);
+        UploadTaskInfo task = loadTask(normalizedTaskId);
         if (task == null || isFinished(task.getStatus())) {
             return task;
         }
@@ -200,10 +210,11 @@ public class UploadTaskServiceImpl implements UploadTaskService {
 
     @Override
     public UploadTaskInfo markSuccess(String taskId, UploadResult result) {
-        if (!StringUtils.hasText(taskId)) {
+        String normalizedTaskId = normalizeTaskIdOrNull(taskId);
+        if (!StringUtils.hasText(normalizedTaskId)) {
             return null;
         }
-        UploadTaskInfo task = loadTask(taskId);
+        UploadTaskInfo task = loadTask(normalizedTaskId);
         if (task == null) {
             return null;
         }
@@ -222,10 +233,11 @@ public class UploadTaskServiceImpl implements UploadTaskService {
 
     @Override
     public UploadTaskInfo markError(String taskId, String errorMessage) {
-        if (!StringUtils.hasText(taskId)) {
+        String normalizedTaskId = normalizeTaskIdOrNull(taskId);
+        if (!StringUtils.hasText(normalizedTaskId)) {
             return null;
         }
-        UploadTaskInfo task = loadTask(taskId);
+        UploadTaskInfo task = loadTask(normalizedTaskId);
         if (task == null) {
             return null;
         }
@@ -240,7 +252,7 @@ public class UploadTaskServiceImpl implements UploadTaskService {
 
     @Override
     public UploadTaskInfo markCanceled(String taskId, Long teacherId) {
-        UploadTaskInfo task = getTask(taskId, teacherId);
+        UploadTaskInfo task = getTask(normalizeTaskId(taskId), teacherId);
         task.setStatus(UploadTaskStatus.CANCELED);
         task.setStage("已取消");
         task.setErrorMessage(null);
@@ -274,8 +286,8 @@ public class UploadTaskServiceImpl implements UploadTaskService {
     }
 
     private UploadTaskInfo loadTask(String taskId) {
-        validateTaskId(taskId);
-        String json = redisTemplate.opsForValue().get(taskKey(taskId));
+        String normalizedTaskId = normalizeTaskId(taskId);
+        String json = redisTemplate.opsForValue().get(taskKey(normalizedTaskId));
         if (!StringUtils.hasText(json)) {
             return null;
         }
@@ -283,21 +295,27 @@ public class UploadTaskServiceImpl implements UploadTaskService {
     }
 
     private void saveWorkingTask(UploadTaskInfo task) {
-        redisTemplate.opsForValue().set(taskKey(task.getTaskId()), JSON.toJSONString(task), WORKING_TTL_HOURS, TimeUnit.HOURS);
+        redisTemplate.opsForValue().set(taskKey(normalizeTaskId(task.getTaskId())), JSON.toJSONString(task), WORKING_TTL_HOURS, TimeUnit.HOURS);
     }
 
     private void saveFinishedTask(UploadTaskInfo task) {
-        redisTemplate.opsForValue().set(taskKey(task.getTaskId()), JSON.toJSONString(task), FINISHED_TTL_HOURS, TimeUnit.HOURS);
+        redisTemplate.opsForValue().set(taskKey(normalizeTaskId(task.getTaskId())), JSON.toJSONString(task), FINISHED_TTL_HOURS, TimeUnit.HOURS);
     }
 
     private void publish(UploadTaskInfo task) {
+        if (task == null || !StringUtils.hasText(task.getTaskId())) {
+            return;
+        }
+        uploadProgressSessionService.sendToLocal(task);
         redisTemplate.convertAndSend(PROGRESS_CHANNEL, JSON.toJSONString(task));
+        log.info("Published upload progress: taskId={}, status={}, stage={}, percent={}", task.getTaskId(), task.getStatus(), task.getStage(), task.getPercent());
     }
 
     private void rememberRecentTask(Long teacherId, String taskId) {
         String key = teacherListKey(teacherId);
-        redisTemplate.opsForList().remove(key, 0, taskId);
-        redisTemplate.opsForList().leftPush(key, taskId);
+        String normalizedTaskId = normalizeTaskId(taskId);
+        redisTemplate.opsForList().remove(key, 0, normalizedTaskId);
+        redisTemplate.opsForList().leftPush(key, normalizedTaskId);
         redisTemplate.opsForList().trim(key, 0, 19);
         redisTemplate.expire(key, FINISHED_TTL_HOURS, TimeUnit.HOURS);
     }
@@ -324,6 +342,38 @@ public class UploadTaskServiceImpl implements UploadTaskService {
         if (!StringUtils.hasText(taskId)) {
             throw new BaseException(400, "taskId 不能为空");
         }
+    }
+
+    private String normalizeTaskId(String taskId) {
+        validateTaskId(taskId);
+        String candidate = taskId.trim();
+        if (!candidate.contains(",")) {
+            return candidate;
+        }
+
+        for (String part : candidate.split(",")) {
+            if (StringUtils.hasText(part)) {
+                return part.trim();
+            }
+        }
+        throw new BaseException(400, "taskId 不能为空");
+    }
+
+    private String normalizeTaskIdOrNull(String taskId) {
+        if (!StringUtils.hasText(taskId)) {
+            return null;
+        }
+        String candidate = taskId.trim();
+        if (!candidate.contains(",")) {
+            return candidate;
+        }
+
+        for (String part : candidate.split(",")) {
+            if (StringUtils.hasText(part)) {
+                return part.trim();
+            }
+        }
+        return null;
     }
 
     private String normalizeResourceType(String resourceType) {

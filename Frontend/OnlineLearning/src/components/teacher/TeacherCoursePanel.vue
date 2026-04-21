@@ -214,7 +214,7 @@ type="file"
             <el-form-item>
               <el-button
 type="primary"
-:loading="operationLoading.uploading"
+:loading="operationLoading.uploading || operationLoading.binding"
 :disabled="!canOperateSelectedCourse"
 @click="handleUpload">
                 开始上传并自动绑定
@@ -245,6 +245,12 @@ width="80" />
 prop="stage"
 label="阶段"
 min-width="130" />
+            <el-table-column label="绑定" width="110">
+              <template #default="{ row }">
+                <el-tag v-if="bindingTaskMap[row.taskId]" type="warning">绑定中</el-tag>
+                <span v-else>-</span>
+              </template>
+            </el-table-column>
             <el-table-column label="操作" width="100">
               <template #default="{ row }">
                 <el-button
@@ -381,6 +387,7 @@ const operationLoading = reactive({
   loadingChapters: false,
   submittingChapter: false,
   uploading: false,
+  binding: false,
 })
 
 const courseDialog = reactive({
@@ -417,6 +424,8 @@ const uploadForm = reactive({
 
 const uploadTaskMap = reactive({})
 const wsSessionMap = reactive({})
+const wsErrorTaskMap = reactive({})
+const bindingTaskMap = reactive({})
 
 const currentUserId = computed(() => String(auth.profile.value.userId || ''))
 const canOperateSelectedCourse = computed(() => !!selectedCourse.value && isOwnCourse(selectedCourse.value))
@@ -778,6 +787,7 @@ function closeTaskWs(taskId) {
   if (!wsHolder) return
   wsHolder.close()
   delete wsSessionMap[taskId]
+  delete wsErrorTaskMap[taskId]
 }
 
 function patchTask(task) {
@@ -787,24 +797,38 @@ function patchTask(task) {
     ...task,
   }
   if (isTaskFinished(task.status)) {
+    delete bindingTaskMap[task.taskId]
     closeTaskWs(task.taskId)
   }
 }
 
 function connectTaskWs(taskId) {
-  if (!taskId || wsSessionMap[taskId]) return
+  if (!taskId) return null
+  if (wsSessionMap[taskId]) return wsSessionMap[taskId]
 
   wsSessionMap[taskId] = connectUploadProgressWs(taskId, {
     onMessage: (task) => {
       patchTask(task)
     },
     onError: (error) => {
-      ElMessage.warning(error instanceof Error ? error.message : '上传进度连接失败')
+      if (wsErrorTaskMap[taskId]) {
+        return
+      }
+      wsErrorTaskMap[taskId] = true
+      ElMessage({
+        type: 'warning',
+        message: error instanceof Error ? error.message : '上传进度连接失败',
+        grouping: true,
+        duration: 1800,
+      })
     },
     onClose: () => {
       delete wsSessionMap[taskId]
+      delete wsErrorTaskMap[taskId]
     },
   })
+
+  return wsSessionMap[taskId]
 }
 
 async function handleUpload() {
@@ -834,6 +858,7 @@ async function handleUpload() {
   }
 
   operationLoading.uploading = true
+  let currentTaskId = ''
 
   try {
     const task = await createUploadTask({
@@ -848,6 +873,7 @@ async function handleUpload() {
     if (!taskId) {
       throw new Error('上传任务创建失败')
     }
+    currentTaskId = taskId
 
     uploadTaskMap[taskId] = {
       taskId,
@@ -858,7 +884,11 @@ async function handleUpload() {
       percent: 0,
     }
 
-    connectTaskWs(taskId)
+    const wsConnection = connectTaskWs(taskId)
+    if (!wsConnection) {
+      throw new Error('上传进度连接初始化失败')
+    }
+    await wsConnection.waitOpen(8000)
 
     const result = await uploadResource({
       file: uploadForm.file,
@@ -874,12 +904,29 @@ async function handleUpload() {
       throw new Error('上传成功但未返回资源ID')
     }
 
+    operationLoading.binding = true
+    bindingTaskMap[taskId] = true
     await bindResourceToChapter(result.resourceId, uploadForm.chapterId)
+    delete bindingTaskMap[taskId]
+    operationLoading.binding = false
     ElMessage.success('上传成功，已自动绑定章节')
 
     uploadForm.file = null
     uploadForm.title = ''
   } catch (error) {
+    operationLoading.binding = false
+    if (currentTaskId) {
+      delete bindingTaskMap[currentTaskId]
+      const task = uploadTaskMap[currentTaskId]
+      if (task && task.status === 'created') {
+        uploadTaskMap[currentTaskId] = {
+          ...task,
+          status: 'error',
+          stage: '连接上传进度失败',
+        }
+      }
+      closeTaskWs(currentTaskId)
+    }
     ElMessage.error(error instanceof Error ? error.message : '上传失败')
   } finally {
     operationLoading.uploading = false
@@ -921,6 +968,8 @@ onBeforeUnmount(() => {
 
 .panel-card {
   border-radius: 16px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  border: 1px solid #dbeafe;
 }
 
 .panel-head {
@@ -951,7 +1000,11 @@ onBeforeUnmount(() => {
 
 .selected-tip {
   margin-bottom: 10px;
-  color: #606266;
+  color: #334155;
+  background: #eff6ff;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  padding: 8px 10px;
 }
 
 .upload-input {
@@ -964,4 +1017,3 @@ onBeforeUnmount(() => {
   }
 }
 </style>
-

@@ -1,6 +1,8 @@
 import { ElMessage } from 'element-plus'
 import { getToken, logout } from '@/utils/auth'
 
+let redirectingToLogin = false
+
 function normalizeHeaders(rawHeaders) {
   if (rawHeaders instanceof Headers) {
     return new Headers(rawHeaders)
@@ -50,14 +52,26 @@ function resolveErrorMessage(data, fallback) {
 }
 
 function handleUnauthorized() {
+  if (redirectingToLogin) {
+    return
+  }
+  redirectingToLogin = true
   logout()
   if (typeof window === 'undefined') {
+    redirectingToLogin = false
     return
   }
   if (window.location.pathname.startsWith('/login')) {
+    redirectingToLogin = false
     return
   }
-  ElMessage.error('登录已过期，请重新登录')
+  ElMessage.closeAll()
+  ElMessage({
+    type: 'error',
+    message: '登录已过期，请重新登录',
+    grouping: true,
+    duration: 2000,
+  })
   window.location.href = '/login'
 }
 
@@ -95,4 +109,3 @@ export async function request(url, options = {}) {
 
   return unwrapBusinessResponse(data)
 }
-

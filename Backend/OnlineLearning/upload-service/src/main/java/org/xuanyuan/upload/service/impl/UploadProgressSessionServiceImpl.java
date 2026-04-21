@@ -2,6 +2,7 @@ package org.xuanyuan.upload.service.impl;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.xuanyuan.upload.dto.UploadTaskInfo;
@@ -23,9 +24,14 @@ public class UploadProgressSessionServiceImpl implements UploadProgressSessionSe
 
     @Override
     public void register(String uploadTaskId, Long teacherId, WebSocketSession session) {
-        SessionHolder holder = new SessionHolder(uploadTaskId, teacherId, session);
+        if (!StringUtils.hasText(uploadTaskId) || teacherId == null || session == null) {
+            return;
+        }
+        String normalizedTaskId = uploadTaskId.trim();
+        SessionHolder holder = new SessionHolder(normalizedTaskId, teacherId, session);
         sessionById.put(session.getId(), holder);
-        taskSessions.computeIfAbsent(uploadTaskId, key -> new ConcurrentHashMap<>()).put(session.getId(), holder);
+        taskSessions.computeIfAbsent(normalizedTaskId, key -> new ConcurrentHashMap<>()).put(session.getId(), holder);
+        log.info("Upload progress session registered: taskId={}, teacherId={}, sessionId={}", normalizedTaskId, teacherId, session.getId());
     }
 
     @Override
@@ -48,18 +54,23 @@ public class UploadProgressSessionServiceImpl implements UploadProgressSessionSe
 
     @Override
     public void sendToLocal(UploadTaskInfo taskInfo) {
-        if (taskInfo == null || taskInfo.getTaskId() == null || taskInfo.getTeacherId() == null) {
+        if (taskInfo == null || !StringUtils.hasText(taskInfo.getTaskId()) || taskInfo.getTeacherId() == null) {
             return;
         }
-        Map<String, SessionHolder> sessions = taskSessions.get(taskInfo.getTaskId());
+        String normalizedTaskId = taskInfo.getTaskId().trim();
+        Map<String, SessionHolder> sessions = taskSessions.get(normalizedTaskId);
         if (sessions == null || sessions.isEmpty()) {
+            log.info("No local upload progress sessions found: taskId={}, teacherId={}", normalizedTaskId, taskInfo.getTeacherId());
             return;
         }
         String payload = JSON.toJSONString(taskInfo);
+        int matched = 0;
+        int pushed = 0;
         for (SessionHolder holder : sessions.values()) {
             if (!Objects.equals(holder.teacherId(), taskInfo.getTeacherId())) {
                 continue;
             }
+            matched++;
             WebSocketSession session = holder.session();
             if (!session.isOpen()) {
                 unregister(session);
@@ -67,11 +78,14 @@ public class UploadProgressSessionServiceImpl implements UploadProgressSessionSe
             }
             try {
                 session.sendMessage(new TextMessage(payload));
+                pushed++;
             } catch (IOException e) {
                 log.warn("Failed to push upload progress, sessionId={}", session.getId(), e);
                 unregister(session);
             }
         }
+        log.info("Local upload progress pushed: taskId={}, teacherId={}, matchedSessions={}, pushedSessions={}, status={}, stage={}, percent={}",
+                normalizedTaskId, taskInfo.getTeacherId(), matched, pushed, taskInfo.getStatus(), taskInfo.getStage(), taskInfo.getPercent());
     }
 
     private record SessionHolder(String uploadTaskId, Long teacherId, WebSocketSession session) {

@@ -49,7 +49,7 @@ public class UploadProgressWebSocketHandler extends TextWebSocketHandler {
         for (String pair : query.split("&")) {
             String[] parts = pair.split("=", 2);
             if (parts.length == 2 && "uploadTaskId".equals(parts[0]) && StringUtils.hasText(parts[1])) {
-                return parts[1];
+                return normalizeTaskId(parts[1]);
             }
         }
         throw new BaseException(400, "uploadTaskId 不能为空");
@@ -65,5 +65,18 @@ public class UploadProgressWebSocketHandler extends TextWebSocketHandler {
         } catch (NumberFormatException e) {
             throw new BaseException(401, "用户信息不合法");
         }
+    }
+
+    private String normalizeTaskId(String taskId) {
+        String candidate = taskId.trim();
+        if (!candidate.contains(",")) {
+            return candidate;
+        }
+        for (String part : candidate.split(",")) {
+            if (StringUtils.hasText(part)) {
+                return part.trim();
+            }
+        }
+        throw new BaseException(400, "uploadTaskId 不能为空");
     }
 }

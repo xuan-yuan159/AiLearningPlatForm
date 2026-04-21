@@ -31,7 +31,6 @@ export function uploadResource(payload) {
   formData.append('courseId', String(courseId))
   formData.append('title', String(title).trim())
   formData.append('resourceType', resourceType)
-  formData.append('uploadTaskId', uploadTaskId)
 
   const query = new URLSearchParams({ uploadTaskId })
   return request(`/upload/resources?${query.toString()}`, {
@@ -71,45 +70,81 @@ function buildWsUrl(taskId) {
 export function connectUploadProgressWs(taskId, handlers = {}) {
   const { onMessage, onOpen, onError, onClose } = handlers
   const socket = new WebSocket(buildWsUrl(taskId))
+  let opened = false
+  let closed = false
+  let openReject = null
+  let errorNotified = false
 
-  socket.onopen = () => {
-    if (onOpen) {
-      onOpen()
+  const openPromise = new Promise((resolve, reject) => {
+    openReject = reject
+
+    socket.onopen = () => {
+      opened = true
+      resolve()
+      if (onOpen) {
+        onOpen()
+      }
+    }
+  })
+
+  function rejectOpen(error) {
+    if (!opened && !closed && openReject) {
+      openReject(error)
+    }
+  }
+
+  function emitError(error) {
+    if (errorNotified) return
+    errorNotified = true
+    if (onError) {
+      onError(error)
     }
   }
 
   socket.onmessage = (event) => {
+    if (typeof event.data !== 'string' || !event.data.trim()) {
+      return
+    }
     try {
       const data = JSON.parse(event.data)
       if (onMessage) {
         onMessage(data)
       }
     } catch {
-      if (onError) {
-        onError(new Error('上传进度消息解析失败'))
-      }
+      if (event.data === 'ping' || event.data === 'pong') return
     }
   }
 
   socket.onerror = () => {
-    if (onError) {
-      onError(new Error('上传进度连接异常'))
-    }
+    const error = new Error('上传进度连接异常')
+    rejectOpen(error)
+    emitError(error)
   }
 
   socket.onclose = () => {
+    rejectOpen(new Error('上传进度连接已关闭'))
+    closed = true
     if (onClose) {
       onClose()
     }
   }
 
+  const waitOpen = (timeoutMs = 8000) =>
+    Promise.race([
+      openPromise,
+      new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('上传进度连接超时，请重试')), timeoutMs)
+      }),
+    ])
+
   return {
     socket,
+    waitOpen,
     close: () => {
+      closed = true
       if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
         socket.close()
       }
     },
   }
 }
-

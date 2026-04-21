@@ -18,6 +18,7 @@ import org.xuanyuan.upload.service.UploadTaskService;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 
 @Component
@@ -75,13 +76,41 @@ public class UploadProgressFilter extends OncePerRequestFilter {
 
     private String resolveUploadTaskId(HttpServletRequest request) {
         String query = request.getQueryString();
-        if (!StringUtils.hasText(query)) {
+        if (StringUtils.hasText(query)) {
+            for (String pair : query.split("&")) {
+                String[] parts = pair.split("=", 2);
+                if (parts.length == 2 && "uploadTaskId".equals(parts[0]) && StringUtils.hasText(parts[1])) {
+                    return normalizeTaskIdCandidate(decodeQueryValue(parts[1]));
+                }
+            }
+        }
+
+        String fromParameter = request.getParameter("uploadTaskId");
+        if (StringUtils.hasText(fromParameter)) {
+            return normalizeTaskIdCandidate(fromParameter);
+        }
+        return null;
+    }
+
+    private String decodeQueryValue(String value) {
+        try {
+            return URLDecoder.decode(value, StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            return value;
+        }
+    }
+
+    private String normalizeTaskIdCandidate(String value) {
+        if (!StringUtils.hasText(value)) {
             return null;
         }
-        for (String pair : query.split("&")) {
-            String[] parts = pair.split("=", 2);
-            if (parts.length == 2 && "uploadTaskId".equals(parts[0]) && StringUtils.hasText(parts[1])) {
-                return parts[1];
+        String candidate = value.trim();
+        if (!candidate.contains(",")) {
+            return candidate;
+        }
+        for (String part : candidate.split(",")) {
+            if (StringUtils.hasText(part)) {
+                return part.trim();
             }
         }
         return null;
